@@ -4,6 +4,10 @@
 #include <GL/glut.h>
 #endif
 
+// Added SDL2/SDL_mixer headers for audio
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
+
 #include <iostream>
 #include <cmath>
 #include <cstring>
@@ -26,8 +30,13 @@ int score = 0;
 bool collide = false;
 int lives = 3;
 int highScore = 0; // Global high score variable
-Mix_Music* carEngineMusic = nullptr;
 
+// Global pointer for the car engine sound (loaded from "sound.mp3")
+Mix_Music* carEngineMusic = nullptr;
+// New globals for controlling engine sound
+bool engineSoundPlaying = false;
+unsigned int lastMovementTime = 0;
+const unsigned int ENGINE_SOUND_TIMEOUT = 2000; // Inactivity threshold in milliseconds
 
 // For player selection.
 std::vector<std::string> players; // list of player names
@@ -225,8 +234,6 @@ void resetBushBlob(int i) {
 }
 
 void resetGame() {
-    // Reset the debug flag.
-    // (Not used for printing any high score text now.)
     std::cout << "Resetting game..." << std::endl;
     score = 0;
     collide = false;
@@ -488,6 +495,13 @@ void drawRegistration() {
 }
 
 void display() {
+    // Check if it's time to stop the engine sound.
+    unsigned int currentTime = glutGet(GLUT_ELAPSED_TIME);
+    if (engineSoundPlaying && (currentTime - lastMovementTime > ENGINE_SOUND_TIMEOUT)) {
+        Mix_HaltMusic();
+        engineSoundPlaying = false;
+    }
+    
     glClear(GL_COLOR_BUFFER_BIT);
     if (gameState == MENU) {
         const char* titleText = "CAR ARCADE GAME";
@@ -522,18 +536,13 @@ void display() {
         drawCenteredText("GAME OVER", winHeight / 2 + 80, boldFont, 1, 0, 0);
         drawCenteredText("GAME OVER", winHeight / 2 + 81, boldFont, 1, 0, 0);
         drawCenteredText("GAME OVER", winHeight / 2 + 79, boldFont, 1, 0, 0);
-
         char scoreStr[32];
         sprintf(scoreStr, "SCORE:  %05d", score);
         drawCenteredText(scoreStr, winHeight / 2 + 40, boldFont, 1, 1, 1);
-
-        // Display high score message only if the current score matches or exceeds the previous high score.
         if (score >= highScore) {
             highScore = score;
             drawCenteredText("NEW HIGH SCORE!", winHeight / 2 + 10, boldFont, 1, 1, 0);
         }
-        
-        // Draw GAME OVER buttons.
         drawFancyButtonCentered(winHeight / 2 - 60, 150, 40, "PLAY AGAIN");
         drawFancyButtonCentered(winHeight / 2 - 110, 150, 40, "CHANGE USER");
     }
@@ -563,7 +572,6 @@ void mouseClick(int button, int state, int x, int y) {
             int availableTop = bottomMargin + availableArea;
             int startY = availableTop - (availableArea - totalHeight) / 2;
             int bx = (winWidth - buttonWidth) / 2;
-            // Check dustbin clicks for removal.
             for (int i = 0; i < players.size(); i++) {
                 int by = startY - i * (buttonHeight + gap);
                 int dustbinX = bx + buttonWidth + 5;
@@ -575,7 +583,6 @@ void mouseClick(int button, int state, int x, int y) {
                     return;
                 }
             }
-            // Check existing player buttons.
             for (int i = 0; i < players.size(); i++) {
                 int by = startY - i * (buttonHeight + gap);
                 if (isInside(x, yflip, bx, by, buttonWidth, buttonHeight)) {
@@ -585,7 +592,6 @@ void mouseClick(int button, int state, int x, int y) {
                     return;
                 }
             }
-            // Check for "Register New Player" if available.
             if (canRegister) {
                 int bxRegister = (winWidth - 200) / 2;
                 int by = startY - players.size() * (buttonHeight + gap);
@@ -603,7 +609,6 @@ void mouseClick(int button, int state, int x, int y) {
             int playAgainButtonY = winHeight / 2 - 60;
             int changeUserButtonX = playAgainButtonX;
             int changeUserButtonY = winHeight / 2 - 110;
-            
             if (isInside(x, yflip, playAgainButtonX, playAgainButtonY, buttonWidth, buttonHeight)) {
                 resetGame();
                 gameState = PLAYING;
@@ -619,14 +624,14 @@ void mouseClick(int button, int state, int x, int y) {
 
 void keyboard(unsigned char key, int x, int y) {
     if (gameState == REGISTER) {
-        if (key == 13) { // Enter key.
+        if (key == 13) {
             if (!newPlayerName.empty()) {
                 players.push_back(newPlayerName);
                 std::cout << "Registered new player: " << newPlayerName << std::endl;
             }
             gameState = PLAYER_SELECT;
         }
-        else if (key == 8) { // Backspace key.
+        else if (key == 8) {
             if (!newPlayerName.empty())
                 newPlayerName.pop_back();
         }
@@ -639,6 +644,12 @@ void keyboard(unsigned char key, int x, int y) {
 void keyPress(int key, int x, int y) {
     if (gameState != PLAYING)
         return;
+    // Record movement time and play engine sound if not already playing.
+    lastMovementTime = glutGet(GLUT_ELAPSED_TIME);
+    if (!engineSoundPlaying && carEngineMusic) {
+        Mix_PlayMusic(carEngineMusic, -1); // Loop indefinitely.
+        engineSoundPlaying = true;
+    }
     if (key == GLUT_KEY_LEFT && currentLaneIndex > 0)
         vehicleX = lanes[--currentLaneIndex];
     if (key == GLUT_KEY_RIGHT && currentLaneIndex < 2)
@@ -654,25 +665,22 @@ void reshape(int w, int h) {
     gluOrtho2D(0, w, 0, h);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-
     const int roadWidth = 300;
     int roadLeft = (w - roadWidth) / 2;
     lanes[0] = roadLeft + 50;
     lanes[1] = roadLeft + 150;
     lanes[2] = roadLeft + 250;
     vehicleX = lanes[currentLaneIndex];
-    
     for (int i = 0; i < 4; i++) {
         float diff0 = fabs(ovehicleX[i] - lanes[0]);
         float diff1 = fabs(ovehicleX[i] - lanes[1]);
         float diff2 = fabs(ovehicleX[i] - lanes[2]);
-        if(diff1 < diff0 && diff1 < diff2) {
+        if(diff1 < diff0 && diff1 < diff2)
             ovehicleX[i] = lanes[1];
-        } else if(diff2 < diff0 && diff2 < diff1) {
+        else if(diff2 < diff0 && diff2 < diff1)
             ovehicleX[i] = lanes[2];
-        } else {
+        else
             ovehicleX[i] = lanes[0];
-        }
     }
 }
 
@@ -689,7 +697,21 @@ int main(int argc, char **argv) {
     // Initialize default players.
     players.push_back("kashish");
     players.push_back("Ananya");
-
+    
+    // Initialize SDL audio and SDL_mixer.
+    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+        std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
+        return 1;
+    }
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        std::cerr << "SDL_mixer could not initialize! SDL_mixer Error: " << Mix_GetError() << std::endl;
+        return 1;
+    }
+    carEngineMusic = Mix_LoadMUS("sound.mp3");
+    if (!carEngineMusic) {
+        std::cerr << "Failed to load car engine sound! SDL_mixer Error: " << Mix_GetError() << std::endl;
+    }
+    
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowSize(winWidth, winHeight);
@@ -704,5 +726,11 @@ int main(int argc, char **argv) {
     glutKeyboardFunc(keyboard);
     glutPassiveMotionFunc(mousePassiveMotion);
     glutMainLoop();
+    
+    // Cleanup audio resources (this may not be reached due to glutMainLoop).
+    Mix_FreeMusic(carEngineMusic);
+    Mix_CloseAudio();
+    SDL_Quit();
+    
     return 0;
 }
