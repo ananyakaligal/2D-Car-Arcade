@@ -142,25 +142,21 @@ void drawFancyButtonCentered(int y, int w, int h, const char* label) {
     glEnd();
     
     const char* special1 = "START GAME";
-    const char* special2 = "Register New Player";
-    float baseR, baseG, baseB;
-    if (strcmp(label, special1) == 0 || strcmp(label, special2) == 0) {
-        baseR = hovered ? 0.8f : 0.6f;
-        baseG = hovered ? 0.8f : 0.6f;
-        baseB = 1.0f;
-    } else {
-        // Force white background for player name buttons.
-        baseR = baseG = baseB = 1.0f;
-    }
+    // Use the same font (Helvetica 18) for the designated buttons.
+    const void* fontToUse;
+    if (strcmp(label, special1) == 0)
+        fontToUse = GLUT_BITMAP_HELVETICA_18;
+    else
+        fontToUse = font18;
     
     glBegin(GL_QUADS);
-        glColor3f(baseR, baseG, baseB);
+        glColor3f(hovered ? 0.8f : 0.6f, hovered ? 0.8f : 0.6f, 1.0f);
         glVertex2f(x, y);
-        glColor3f(baseR * 0.9f, baseG * 0.9f, baseB * 0.9f);
+        glColor3f(hovered ? 0.72f : 0.54f, hovered ? 0.72f : 0.54f, 0.9f);
         glVertex2f(x + w, y);
-        glColor3f(baseR * 0.9f, baseG * 0.9f, baseB * 0.9f);
+        glColor3f(hovered ? 0.72f : 0.54f, hovered ? 0.72f : 0.54f, 0.9f);
         glVertex2f(x + w, y + h);
-        glColor3f(baseR, baseG, baseB);
+        glColor3f(hovered ? 0.8f : 0.6f, hovered ? 0.8f : 0.6f, 1.0f);
         glVertex2f(x, y + h);
     glEnd();
     
@@ -174,12 +170,6 @@ void drawFancyButtonCentered(int y, int w, int h, const char* label) {
         glVertex2f(x, y + h);
     glEnd();
     
-    // Choose font.
-    const void* fontToUse;
-    if (strcmp(label, "START GAME") == 0)
-        fontToUse = GLUT_BITMAP_HELVETICA_18;
-    else
-        fontToUse = font18;
     int textWidth = getTextWidth(label, (void*)fontToUse);
     drawText(label, x + (w - textWidth) / 2, y + h / 2 - 6, (void*)fontToUse, 0, 0, 0);
 }
@@ -542,12 +532,18 @@ void display() {
         drawGame();
     }
     else if (gameState == GAME_OVER) {
-        drawCenteredText("GAME OVER", winHeight / 2 + 40, boldFont, 1, 0, 0);
+        // Shift GAME OVER and SCORE upward by adjusting the y-coordinates.
+        drawCenteredText("GAME OVER", winHeight / 2 + 80, boldFont, 1, 0, 0);
+        drawCenteredText("GAME OVER", winHeight / 2 + 81, boldFont, 1, 0, 0);
+        drawCenteredText("GAME OVER", winHeight / 2 + 79, boldFont, 1, 0, 0);
+
         char scoreStr[32];
         sprintf(scoreStr, "SCORE:  %05d", score);
-        drawCenteredText(scoreStr, winHeight / 2 - 10, boldFont, 1, 1, 1);
-        drawFancyButtonCentered(winHeight / 2 - 60, 150, 40, "RESTART");
-        drawFancyButtonCentered(winHeight / 2 - 110, 150, 40, "CHANGE PLAYER");
+        drawCenteredText(scoreStr, winHeight / 2 + 40, boldFont, 1, 1, 1);
+        
+        // Adjusted buttons with updated coordinates:
+        drawFancyButtonCentered(winHeight / 2 - 60, 150, 40, "PLAY AGAIN");
+        drawFancyButtonCentered(winHeight / 2 - 110, 150, 40, "CHANGE USER");
     }
     glutSwapBuffers();
 }
@@ -611,16 +607,18 @@ void mouseClick(int button, int state, int x, int y) {
         else if (gameState == GAME_OVER) {
             int buttonWidth = 150;
             int buttonHeight = 40;
-            int restartButtonX = (winWidth - buttonWidth) / 2;
-            int restartButtonY = winHeight / 2 - 60;
-            int changeButtonX = restartButtonX;
-            int changeButtonY = winHeight / 2 - 110;
-            if (isInside(x, yflip, restartButtonX, restartButtonY, buttonWidth, buttonHeight)) {
+            // Updated coordinates to match those used in display():
+            int playAgainButtonX = (winWidth - buttonWidth) / 2;
+            int playAgainButtonY = winHeight / 2 - 60;
+            int changeUserButtonX = playAgainButtonX;
+            int changeUserButtonY = winHeight / 2 - 110;
+            
+            if (isInside(x, yflip, playAgainButtonX, playAgainButtonY, buttonWidth, buttonHeight)) {
                 resetGame();
                 gameState = PLAYING;
                 return;
             }
-            if (isInside(x, yflip, changeButtonX, changeButtonY, buttonWidth, buttonHeight)) {
+            if (isInside(x, yflip, changeUserButtonX, changeUserButtonY, buttonWidth, buttonHeight)) {
                 gameState = PLAYER_SELECT;
                 return;
             }
@@ -702,8 +700,8 @@ void init() {
 
 int main(int argc, char **argv) {
     // Initialize default players.
-    players.push_back("kashish");
-    players.push_back("dananya");
+    players.push_back("Kashish");
+    players.push_back("Ananya");
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
