@@ -61,6 +61,9 @@ void *boldFont = GLUT_BITMAP_TIMES_ROMAN_24;
 // Global mouse coordinates (for hover effects)
 int mouseX = 0, mouseY = 0;
 
+// NEW: Global speed multiplier to adjust game pace.
+float speedMultiplier = 1.0f;
+
 void mousePassiveMotion(int x, int y) {
     mouseX = x;
     mouseY = winHeight - y;
@@ -238,6 +241,10 @@ void resetGame() {
     collide = false;
     lives = 3;
     vehicleX = lanes[currentLaneIndex = 1];
+
+    // Reset the speed multiplier for a fresh start.
+    speedMultiplier = 1.0f;
+
     for (int i = 0; i < 4; i++) {
         ovehicleX[i] = lanes[rand() % 3];
         ovehicleY[i] = 1000 - i * 250;
@@ -299,16 +306,16 @@ void drawGame() {
         int laneX = roadLeft + lane * 100;
         for (int i = 0; i < 20; i++) {
             glBegin(GL_QUADS);
-                glVertex2f(laneX - 5, i * 40 + (movd % static_cast<int>(40 * speedFactor)));
-                glVertex2f(laneX + 5, i * 40 + (movd % static_cast<int>(40 * speedFactor)));
-                glVertex2f(laneX + 5, i * 40 + 20 + (movd % static_cast<int>(40 * speedFactor)));
-                glVertex2f(laneX - 5, i * 40 + 20 + (movd % static_cast<int>(40 * speedFactor)));
+                glVertex2f(laneX - 5, i * 40 + (movd % static_cast<int>(40 * speedFactor * speedMultiplier)));
+                glVertex2f(laneX + 5, i * 40 + (movd % static_cast<int>(40 * speedFactor * speedMultiplier)));
+                glVertex2f(laneX + 5, i * 40 + 20 + (movd % static_cast<int>(40 * speedFactor * speedMultiplier)));
+                glVertex2f(laneX - 5, i * 40 + 20 + (movd % static_cast<int>(40 * speedFactor * speedMultiplier)));
             glEnd();
         }
     }
     // Update scrolling with speed scaling.
-    movd -= static_cast<int>(5 * speedFactor);
-    if (movd < -static_cast<int>(40 * speedFactor))
+    movd -= static_cast<int>(5 * speedFactor * speedMultiplier);
+    if (movd < -static_cast<int>(40 * speedFactor * speedMultiplier))
         movd = 0;
     
     // Draw the player's vehicle.
@@ -398,12 +405,12 @@ void drawGame() {
             }
         }
         // Move obstacles with speed scaling.
-        ovehicleY[i] -= static_cast<int>(3 * speedFactor);
+        ovehicleY[i] -= static_cast<int>(3 * speedFactor * speedMultiplier);
         if (!collide && !obstaclePassed[i] && ovehicleY[i] + 25 < vehicleY - 20) {
             score++;
             obstaclePassed[i] = true;
         }
-        // Reset obstacles when they leave the screen (scale the threshold too).
+        // Reset obstacles when they leave the screen.
         if (ovehicleY[i] < -static_cast<int>(50 * speedFactor)) {
             int newX = lanes[rand() % 3];
             int newY = winHeight;
@@ -441,6 +448,9 @@ void drawGame() {
         float heartY = winHeight - 80;
         drawHeart(heartX, heartY, 1.5f, i < lives);
     }
+    
+    // Gradually increase the speed multiplier to harden the game over time.
+    speedMultiplier += 0.0005f;
 }
 
 bool isInside(int x, int y, int bx, int by, int bw, int bh) {
