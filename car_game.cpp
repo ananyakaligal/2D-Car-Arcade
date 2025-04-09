@@ -26,6 +26,8 @@ int score = 0;
 bool collide = false;
 int lives = 3;
 int highScore = 0; // Global high score variable
+Mix_Music* carEngineMusic = nullptr;
+
 
 // For player selection.
 std::vector<std::string> players; // list of player names
