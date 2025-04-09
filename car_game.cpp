@@ -20,6 +20,8 @@ GLuint carTexture;
 
 int score = 0;
 bool collide = false;
+int lives = 3;
+
 
 int lanes[3] = { 150, 250, 350 };
 int currentLaneIndex = 1;
@@ -85,6 +87,27 @@ void drawCenteredText(const char *text, int y, void *font, float r, float g, flo
     drawText(text, (winWidth - width) / 2, y, font, r, g, b);
 }
 
+void drawBigCenteredTitle(const char *text, float y, float scale, float r, float g, float b) {
+    void* font = GLUT_STROKE_MONO_ROMAN;
+    float width = 0;
+    for (int i = 0; text[i] != '\0'; i++)
+        width += glutStrokeWidth(font, text[i]);
+    float startX = (winWidth - width * scale) / 2.0f;
+
+    glPushMatrix();
+    for (int dx = -2; dx <= 2; dx++) {
+        for (int dy = -2; dy <= 2; dy++) {
+            glLoadIdentity();
+            glTranslatef(startX + dx, y + dy, 0);
+            glScalef(scale, scale, 1);
+            glColor3f(r, g, b);
+            for (int i = 0; text[i] != '\0'; i++)
+                glutStrokeCharacter(font, text[i]);
+        }
+    }
+    glPopMatrix();
+}
+
 void drawButtonCentered(int y, int w, int h, const char *label) {
     int x = (winWidth - w) / 2;
     glColor3f(1, 1, 1);
@@ -116,6 +139,7 @@ void resetBushBlob(int i) {
 void resetGame() {
     score = 0;
     collide = false;
+    lives = 3;  // reset to 3 lives
     vehicleX = lanes[currentLaneIndex = 1];
     for (int i = 0; i < 4; i++) {
         ovehicleX[i] = lanes[rand() % 3];
@@ -128,6 +152,26 @@ void resetGame() {
     }
     movd = 0;
 }
+void drawHeart(float x, float y, float size, bool filled) {
+    glColor3f(1.0f, 0.0f, 0.0f);
+
+    if (!filled) {
+        glLineWidth(2);
+        glBegin(GL_LINE_LOOP);
+    } else {
+        glBegin(GL_POLYGON);
+    }
+
+    for (float angle = 0; angle <= 2 * 3.14159f; angle += 0.01f) {
+        float px = size * 16 * pow(sin(angle), 3);
+        float py = size * (13 * cos(angle) - 5 * cos(2 * angle) - 2 * cos(3 * angle) - cos(4 * angle));
+
+        glVertex2f(x + px, y + py);
+    }
+
+    glEnd();
+}
+
 
 void drawGame() {
     glColor3f(0, 1, 0);
@@ -240,8 +284,19 @@ void drawGame() {
         }
 
         if (!collide && ovehicleX[i] == vehicleX &&
-            ovehicleY[i] > vehicleY - 40 && ovehicleY[i] < vehicleY + 40)
-            collide = true;
+    ovehicleY[i] > vehicleY - 40 && ovehicleY[i] < vehicleY + 40) {
+    
+    lives--;
+
+    if (lives <= 0) {
+        collide = true;
+        gameState = GAME_OVER;
+    } else {
+        // Flash effect or pause if you want, for now just reset position
+        vehicleX = lanes[currentLaneIndex = 1];
+    }
+}
+
 
         ovehicleY[i] -= 3;
 
@@ -279,14 +334,24 @@ void drawGame() {
     glEnd();
     drawText("SCORE:", 15, winHeight - 30, boldFont, 1, 0, 0);
     drawText(buffer, 100, winHeight - 30, boldFont, 1, 0, 0);
+   // Draw hearts instead of text lives
+for (int i = 0; i < 3; i++) {
+    float heartX = 30 + i * 50;
+    float heartY = winHeight - 80;
+    drawHeart(heartX, heartY, 1.5f, i < lives);
+}
+
 }
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
+    int centerY = winHeight / 2;
     if (gameState == MENU) {
-        drawCenteredText("CAR ARCADE GAME", winHeight - 200, boldFont, 1, 0, 0);
-        drawCenteredText("BY Kashish & Ananya", winHeight - 230, font18, 1, 1, 1);
-        drawButtonCentered(winHeight - 300, 150, 40, "START GAME");
+        drawBigCenteredTitle("CAR ARCADE GAME", centerY + 100, 0.4f, 1, 0, 0);
+        drawCenteredText("BY Kashish & Ananya", centerY + 40, font18, 1, 1, 1);
+        drawButtonCentered(centerY - 60, 150, 40, "START GAME");
+
+
     }
     else if (gameState == PLAYING) {
         drawGame();
@@ -316,11 +381,15 @@ void reshape(int w, int h) {
 void mouseClick(int button, int state, int x, int y) {
     int yflip = winHeight - y;
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        if (gameState == MENU && x >= (winWidth - 150) / 2 && x <= (winWidth + 150) / 2 && yflip >= winHeight - 300 && yflip <= winHeight - 260) {
+        if (gameState == MENU &&
+            x >= (winWidth - 150) / 2 && x <= (winWidth + 150) / 2 &&
+            yflip >= winHeight / 2 - 60 && yflip <= winHeight / 2 - 20) {
             resetGame();
             gameState = PLAYING;
         }
-        else if (gameState == GAME_OVER && x >= (winWidth - 150) / 2 && x <= (winWidth + 150) / 2 && yflip >= winHeight / 2 - 60 && yflip <= winHeight / 2 - 20) {
+        else if (gameState == GAME_OVER &&
+                 x >= (winWidth - 150) / 2 && x <= (winWidth + 150) / 2 &&
+                 yflip >= winHeight / 2 - 60 && yflip <= winHeight / 2 - 20) {
             resetGame();
             gameState = PLAYING;
         }
