@@ -9,6 +9,7 @@
 #include <cstring>
 #include <vector>
 #include <string>
+#include <cstdlib>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -24,22 +25,22 @@ GLuint carTexture;
 int score = 0;
 bool collide = false;
 int lives = 3;
+int highScore = 0; // Global high score variable
 
-// For player selection
-std::vector<std::string> players;      // list of player names
-int currentPlayerIndex = 0;            // index of the currently selected player
+// For player selection.
+std::vector<std::string> players; // list of player names
+int currentPlayerIndex = 0;       // index of the currently selected player
 const int MAX_PLAYERS = 5;
 
-// Buffer for new player input (used in REGISTER state)
+// Buffer for new player input (used in REGISTER state).
 std::string newPlayerName = "";
 
-// Game variables
-// We'll update lane positions dynamically upon reshape.
-int lanes[3] = {150, 250, 350};  // recalculated in reshape
+// Game variables; lanes updated in reshape.
+int lanes[3] = {150, 250, 350}; // recalculated in reshape.
 int currentLaneIndex = 1;
 int vehicleX = lanes[currentLaneIndex], vehicleY = 70;
 int ovehicleX[4], ovehicleY[4];
-bool obstaclePassed[4];  // track if obstacle has been passed
+bool obstaclePassed[4]; // track if obstacle has been passed.
 int movd = 0;
 char buffer[10];
 
@@ -54,14 +55,14 @@ struct BushBlob {
 };
 BushBlob bushBlobs[4];
 
-// Fonts used for text
+// Fonts used for text.
 void *font18 = GLUT_BITMAP_HELVETICA_18;
 void *boldFont = GLUT_BITMAP_TIMES_ROMAN_24;
 
-// Global mouse coordinates (for hover effects)
+// Global mouse coordinates (for hover effects).
 int mouseX = 0, mouseY = 0;
 
-// NEW: Global speed multiplier to adjust game pace.
+// Global speed multiplier to adjust game pace.
 float speedMultiplier = 1.0f;
 
 void mousePassiveMotion(int x, int y) {
@@ -69,7 +70,7 @@ void mousePassiveMotion(int x, int y) {
     mouseY = winHeight - y;
 }
 
-// Utility: returns the pixel width for a string (using GLUT bitmap fonts)
+// Utility: returns the pixel width for a string (using GLUT bitmap fonts).
 int getTextWidth(const char *text, void *font) {
     int width = 0;
     for (int i = 0; text[i] != '\0'; i++)
@@ -132,7 +133,7 @@ void drawBigCenteredTitle(const char *text, float y, float scale, float r, float
 void drawFancyButtonCentered(int y, int w, int h, const char* label) {
     int x = (winWidth - w) / 2;
     bool hovered = (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
-    // Draw shadow
+    // Draw shadow.
     glColor3f(0, 0, 0);
     glBegin(GL_QUADS);
         glVertex2f(x + 3, y - 3);
@@ -142,12 +143,7 @@ void drawFancyButtonCentered(int y, int w, int h, const char* label) {
     glEnd();
     
     const char* special1 = "START GAME";
-    // Use the same font (Helvetica 18) for the designated buttons.
-    const void* fontToUse;
-    if (strcmp(label, special1) == 0)
-        fontToUse = GLUT_BITMAP_HELVETICA_18;
-    else
-        fontToUse = font18;
+    const void* fontToUse = (strcmp(label, special1) == 0) ? GLUT_BITMAP_HELVETICA_18 : font18;
     
     glBegin(GL_QUADS);
         glColor3f(hovered ? 0.8f : 0.6f, hovered ? 0.8f : 0.6f, 1.0f);
@@ -227,14 +223,16 @@ void resetBushBlob(int i) {
 }
 
 void resetGame() {
+    // Reset the debug flag.
+    // (Not used for printing any high score text now.)
+    std::cout << "Resetting game..." << std::endl;
     score = 0;
     collide = false;
     lives = 3;
-    vehicleX = lanes[currentLaneIndex = 1];
-
-    // Reset the speed multiplier for a fresh start.
+    currentLaneIndex = 1;
+    vehicleX = lanes[currentLaneIndex];
     speedMultiplier = 1.0f;
-
+    
     for (int i = 0; i < 4; i++) {
         ovehicleX[i] = lanes[rand() % 3];
         ovehicleY[i] = 1000 - i * 250;
@@ -263,15 +261,12 @@ void drawHeart(float x, float y, float size, bool filled) {
 }
 
 void drawGame() {
-    // Compute a speed factor based on window height relative to our base height.
     float speedFactor = winHeight / static_cast<float>(baseHeight);
-    
-    // Set up the road parameters dynamically.
     const int roadWidth = 300;
     int roadLeft = (winWidth - roadWidth) / 2;
     int roadRight = roadLeft + roadWidth;
     
-    // Draw the green background.
+    // Draw background.
     glColor3f(0, 1, 0);
     glBegin(GL_QUADS);
         glVertex2f(0, 0);
@@ -279,8 +274,7 @@ void drawGame() {
         glVertex2f(winWidth, winHeight);
         glVertex2f(winWidth, 0);
     glEnd();
-    
-    // Draw the road (centered).
+    // Draw road.
     glColor3f(0.1, 0.1, 0.1);
     glBegin(GL_QUADS);
         glVertex2f(roadLeft, 0);
@@ -288,10 +282,8 @@ void drawGame() {
         glVertex2f(roadRight, winHeight);
         glVertex2f(roadRight, 0);
     glEnd();
-    
     // Draw lane markers.
     glColor3f(1, 1, 1);
-    // Lane markers at: roadLeft + 100 and roadLeft + 200.
     for (int lane = 1; lane < 3; lane++) {
         int laneX = roadLeft + lane * 100;
         for (int i = 0; i < 20; i++) {
@@ -303,12 +295,11 @@ void drawGame() {
             glEnd();
         }
     }
-    // Update scrolling with speed scaling.
     movd -= static_cast<int>(5 * speedFactor * speedMultiplier);
     if (movd < -static_cast<int>(40 * speedFactor * speedMultiplier))
         movd = 0;
     
-    // Draw the player's vehicle.
+    // Draw player's vehicle.
     glColor3f(0, 0, 1);
     glBegin(GL_QUADS);
         glVertex2f(vehicleX - 25, vehicleY - 20);
@@ -317,7 +308,7 @@ void drawGame() {
         glVertex2f(vehicleX - 25, vehicleY + 20);
     glEnd();
     
-    // Draw obstacles.
+    // Draw obstacles and check collision.
     for (int i = 0; i < 4; i++) {
         int x = ovehicleX[i];
         int y = ovehicleY[i];
@@ -390,24 +381,22 @@ void drawGame() {
             if (lives <= 0) {
                 collide = true;
                 gameState = GAME_OVER;
+                std::cout << "Game Over. Final Score: " << score << std::endl;
             } else {
                 vehicleX = lanes[currentLaneIndex = 1];
             }
         }
-        // Move obstacles with speed scaling.
         ovehicleY[i] -= static_cast<int>(3 * speedFactor * speedMultiplier);
         if (!collide && !obstaclePassed[i] && ovehicleY[i] + 25 < vehicleY - 20) {
             score++;
             obstaclePassed[i] = true;
         }
-        // Reset obstacles when they leave the screen.
         if (ovehicleY[i] < -static_cast<int>(50 * speedFactor)) {
             int newX = lanes[rand() % 3];
             int newY = winHeight;
             bool valid = true;
             for (int j = 0; j < 4; j++) {
-                if (j != i && ovehicleX[j] != newX && abs(ovehicleY[j] - newY) < 150)
-                {
+                if (j != i && ovehicleX[j] != newX && abs(ovehicleY[j] - newY) < 150) {
                     valid = false;
                     break;
                 }
@@ -426,9 +415,9 @@ void drawGame() {
     sprintf(buffer, "%05d", score);
     glColor3f(0, 0, 0);
     glBegin(GL_QUADS);
-        glVertex2f(10, winHeight - 40); 
+        glVertex2f(10, winHeight - 40);
         glVertex2f(150, winHeight - 40);
-        glVertex2f(150, winHeight - 10); 
+        glVertex2f(150, winHeight - 10);
         glVertex2f(10, winHeight - 10);
     glEnd();
     drawText("SCORE:", 15, winHeight - 30, boldFont, 1, 0, 0);
@@ -439,7 +428,6 @@ void drawGame() {
         drawHeart(heartX, heartY, 1.5f, i < lives);
     }
     
-    // Gradually increase the speed multiplier to harden the game over time.
     speedMultiplier += 0.0005f;
 }
 
@@ -447,14 +435,12 @@ bool isInside(int x, int y, int bx, int by, int bw, int bh) {
     return (x >= bx && x <= bx + bw && y >= by && y <= by + bh);
 }
 
-// Updated player selection interface.
 void drawPlayerSelection() {
     drawCenteredText("SELECT PLAYER", winHeight - 60, boldFont, 1, 1, 1);
     
     int buttonWidth = 200;
     int buttonHeight = 40;
     int gap = 20;
-    
     int numItems = players.size();
     bool canRegister = (players.size() < MAX_PLAYERS);
     if (canRegister)
@@ -466,9 +452,8 @@ void drawPlayerSelection() {
     int totalHeight = numItems * buttonHeight + (numItems - 1) * gap;
     int availableTop = bottomMargin + availableArea;
     int startY = availableTop - (availableArea - totalHeight) / 2;
-    
-    // Draw each player button with a dustbin for removal.
     int bx = (winWidth - buttonWidth) / 2;
+    
     for (int i = 0; i < players.size(); i++) {
         int by = startY - i * (buttonHeight + gap);
         drawFancyButtonCentered(by, buttonWidth, buttonHeight, players[i].c_str());
@@ -482,7 +467,6 @@ void drawPlayerSelection() {
     }
 }
 
-// Updated registration screen.
 void drawRegistration() {
     drawCenteredText("REGISTER NEW PLAYER", winHeight - 60, boldFont, 1, 1, 1);
     
@@ -532,7 +516,7 @@ void display() {
         drawGame();
     }
     else if (gameState == GAME_OVER) {
-        // Shift GAME OVER and SCORE upward by adjusting the y-coordinates.
+        // Draw GAME OVER texts.
         drawCenteredText("GAME OVER", winHeight / 2 + 80, boldFont, 1, 0, 0);
         drawCenteredText("GAME OVER", winHeight / 2 + 81, boldFont, 1, 0, 0);
         drawCenteredText("GAME OVER", winHeight / 2 + 79, boldFont, 1, 0, 0);
@@ -540,8 +524,14 @@ void display() {
         char scoreStr[32];
         sprintf(scoreStr, "SCORE:  %05d", score);
         drawCenteredText(scoreStr, winHeight / 2 + 40, boldFont, 1, 1, 1);
+
+        // Display high score message only if the current score matches or exceeds the previous high score.
+        if (score >= highScore) {
+            highScore = score;
+            drawCenteredText("NEW HIGH SCORE!", winHeight / 2 + 10, boldFont, 1, 1, 0);
+        }
         
-        // Adjusted buttons with updated coordinates:
+        // Draw GAME OVER buttons.
         drawFancyButtonCentered(winHeight / 2 - 60, 150, 40, "PLAY AGAIN");
         drawFancyButtonCentered(winHeight / 2 - 110, 150, 40, "CHANGE USER");
     }
@@ -607,7 +597,6 @@ void mouseClick(int button, int state, int x, int y) {
         else if (gameState == GAME_OVER) {
             int buttonWidth = 150;
             int buttonHeight = 40;
-            // Updated coordinates to match those used in display():
             int playAgainButtonX = (winWidth - buttonWidth) / 2;
             int playAgainButtonY = winHeight / 2 - 60;
             int changeUserButtonX = playAgainButtonX;
@@ -628,14 +617,14 @@ void mouseClick(int button, int state, int x, int y) {
 
 void keyboard(unsigned char key, int x, int y) {
     if (gameState == REGISTER) {
-        if (key == 13) { // Enter key
+        if (key == 13) { // Enter key.
             if (!newPlayerName.empty()) {
                 players.push_back(newPlayerName);
                 std::cout << "Registered new player: " << newPlayerName << std::endl;
             }
             gameState = PLAYER_SELECT;
         }
-        else if (key == 8) { // Backspace key
+        else if (key == 8) { // Backspace key.
             if (!newPlayerName.empty())
                 newPlayerName.pop_back();
         }
@@ -664,17 +653,13 @@ void reshape(int w, int h) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // Recalculate lane positions based on the centered road.
     const int roadWidth = 300;
     int roadLeft = (w - roadWidth) / 2;
     lanes[0] = roadLeft + 50;
     lanes[1] = roadLeft + 150;
     lanes[2] = roadLeft + 250;
-    
-    // Update vehicle position to align with new lane centers.
     vehicleX = lanes[currentLaneIndex];
     
-    // Update obstacles to move them to the nearest lane.
     for (int i = 0; i < 4; i++) {
         float diff0 = fabs(ovehicleX[i] - lanes[0]);
         float diff1 = fabs(ovehicleX[i] - lanes[1]);
@@ -700,7 +685,7 @@ void init() {
 
 int main(int argc, char **argv) {
     // Initialize default players.
-    players.push_back("Kashish");
+    players.push_back("kashish");
     players.push_back("Ananya");
 
     glutInit(&argc, argv);
